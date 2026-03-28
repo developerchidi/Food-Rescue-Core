@@ -1,0 +1,106 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  DONOR
+  RECEIVER
+  ADMIN
+}
+
+enum FoodStatus {
+  AVAILABLE
+  PENDING
+  TAKEN
+  EXPIRED
+}
+
+enum DonationStatus {
+  REQUESTED
+  APPROVED
+  COMPLETED
+  CANCELLED
+}
+
+enum FoodType {
+  MYSTERY_BOX
+  INDIVIDUAL
+}
+
+enum FulfillmentMethod {
+  PICKUP
+  DELIVERY
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String?   // Mật khẩu đã mã hóa
+  emailVerified DateTime? // Xác thực email
+  name          String?
+  role          UserRole  @default(RECEIVER)
+  latitude      Float?
+  longitude     Float?
+  points        Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  foodPosts     FoodPost[]
+  donations     Donation[]
+}
+
+model FoodPost {
+  id            String    @id @default(uuid())
+  donorId       String
+  donor         User      @relation(fields: [donorId], references: [id])
+  title         String
+  description   String?
+  imageUrl      String?
+  type          FoodType  @default(INDIVIDUAL)
+  originalPrice Float?
+  rescuePrice   Float?
+  quantity      Int       @default(1) // Số lượng có sẵn
+  expiryDate    DateTime
+  status        FoodStatus @default(AVAILABLE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  donations     Donation[]
+}
+
+model Donation {
+  id            String         @id @default(uuid())
+  postId        String
+  post          FoodPost       @relation(fields: [postId], references: [id])
+  receiverId    String
+  receiver      User           @relation(fields: [receiverId], references: [id])
+  quantity      Int            @default(1) // Số lượng giải cứu
+  fulfillmentMethod FulfillmentMethod @default(PICKUP)
+  deliveryAddress String?        // Địa chỉ giao hàng nếu chọn DELIVERY
+  deliveryPhone   String?        // Số điện thoại nhận hàng
+  status        DonationStatus @default(REQUESTED)
+  qrCode        String?        @unique
+  pickupTime    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model SupportRequest {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  message   String
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+}
