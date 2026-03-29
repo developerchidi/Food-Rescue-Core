@@ -1,4 +1,4 @@
-import { redis } from "@/lib/redis";
+import { redis } from "../lib/redis";
 
 export class ReservationService {
   private static getKey(postId: string) {
