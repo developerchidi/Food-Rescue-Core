@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma } from "../lib/prisma";
 import { FoodPost, FoodStatus } from "@prisma/client";
 
 export class FoodPostService {
