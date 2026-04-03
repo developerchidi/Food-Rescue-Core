@@ -4,11 +4,28 @@ import { generateSecureQRToken } from "../lib/qr";
 
 export class DonationService {
   static async createDonation(payload: any, userId: string) {
-    // 3. Redis Reservation
-    const isReserved = await ReservationService.reserveItem(payload.postId, payload.quantity);
-
-    if (!isReserved) {
-      throw new Error("Rất tiếc, món ăn này vừa hết hàng hoặc không đủ số lượng.");
+    if (payload.holdId) {
+      const ok = await ReservationService.validateAndConsumeHold(
+        payload.holdId,
+        userId,
+        payload.postId,
+        payload.quantity
+      );
+      if (!ok) {
+        throw new Error(
+          "Giữ chỗ không hợp lệ hoặc đã hết hạn. Vui lòng tải lại trang và thử lại."
+        );
+      }
+    } else {
+      const isReserved = await ReservationService.reserveItem(
+        payload.postId,
+        payload.quantity
+      );
+      if (!isReserved) {
+        throw new Error(
+          "Rất tiếc, món ăn này vừa hết hàng hoặc không đủ số lượng."
+        );
+      }
     }
 
     try {
@@ -64,7 +81,6 @@ export class DonationService {
       return result;
 
     } catch (error: any) {
-      // Rollback Redis if DB fails
       console.error("CREATE_DONATION_ERROR:", error);
       await ReservationService.releaseItem(payload.postId, payload.quantity);
       throw new Error(error.message || "Lỗi hệ thống khi tạo đơn hàng.");

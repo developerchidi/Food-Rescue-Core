@@ -6,6 +6,7 @@ export const FulfillmentMethodSchema = z.enum(["PICKUP", "DELIVERY"]);
 export const RescueSchema = z
   .object({
     postId: IdSchema,
+    holdId: IdSchema.optional(),
     quantity: z
       .number({
         message: "Số lượng phải là một số.",
