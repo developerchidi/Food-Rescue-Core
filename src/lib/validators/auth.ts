@@ -10,6 +10,8 @@ export const RegisterSchema = z.object({
     }),
   email: EmailSchema,
   password: PasswordSchema,
+  /** Đăng ký với vai trò nhà hàng / đối tác (DONOR). Mặc định false = người nhận (RECEIVER). */
+  registerAsMerchant: z.boolean().optional().default(false),
 });
 
 export type RegisterInput = z.infer<typeof RegisterSchema>;

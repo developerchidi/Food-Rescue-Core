@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { UserRole } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { RegisterSchema } from '../lib/validators/auth';
 import { authMiddleware, AuthRequest } from '../middleware/auth.middleware';
@@ -30,7 +31,15 @@ router.post('/login', async (req: any, res: any) => {
 
 router.post('/register', async (req: any, res: any) => {
   try {
-    const { name, email, password } = RegisterSchema.parse(req.body);
+    const parsed = RegisterSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Dữ liệu không hợp lệ',
+        fieldErrors: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const { name, email, password, registerAsMerchant } = parsed.data;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -39,14 +48,20 @@ router.post('/register', async (req: any, res: any) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword },
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role: registerAsMerchant ? UserRole.DONOR : UserRole.RECEIVER,
+      },
     });
 
-    return res.status(201).json({ message: 'Đăng ký thành công', userId: user.id });
+    return res.status(201).json({
+      message: 'Đăng ký thành công',
+      userId: user.id,
+      role: user.role,
+    });
   } catch (err: any) {
-    if (err.issues) {
-      return res.status(400).json({ error: 'Dữ liệu không hợp lệ', issues: err.issues });
-    }
     console.error(err);
     return res.status(500).json({ error: 'Có lỗi xảy ra trong quá trình đăng ký' });
   }
