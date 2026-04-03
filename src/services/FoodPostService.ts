@@ -8,14 +8,22 @@ export class FoodPostService {
     description?: string;
     imageUrl?: string;
     type: "MYSTERY_BOX" | "INDIVIDUAL";
-    originalPrice: number;
-    rescuePrice: number;
+    originalPrice?: number;
+    rescuePrice?: number;
     quantity: number;
     expiryDate: Date;
   }): Promise<FoodPost> {
     return prisma.foodPost.create({
       data: {
-        ...data,
+        donorId: data.donorId,
+        title: data.title,
+        description: data.description,
+        imageUrl: data.imageUrl,
+        type: data.type,
+        originalPrice: data.originalPrice,
+        rescuePrice: data.rescuePrice,
+        quantity: data.quantity,
+        expiryDate: data.expiryDate,
         status: FoodStatus.AVAILABLE,
       },
     });
