@@ -14,6 +14,7 @@ import donationRoutes from './routes/donation.routes';
 import contactRoutes from './routes/contact.routes';
 import reservationRoutes from './routes/reservation.routes';
 import morgan from 'morgan';
+import { rateLimitMiddleware } from './middleware/ratelimit.middleware';
 
 const app = express();
 app.use(morgan('dev')); // Standard HTTP logger
@@ -32,7 +33,22 @@ app.use(express.json());
 app.use(cors({ origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000', credentials: true }));
 app.use(cookieParser());
 
+const healthJson = () => ({
+  status: 'ok' as const,
+  uptime: process.uptime(),
+  timestamp: new Date().toISOString(),
+  service: 'food-rescue-api',
+});
+
+app.get('/health', (_req, res) => {
+  res.status(200).json(healthJson());
+});
+
 // --- ROUTES --- //
+app.use('/api', rateLimitMiddleware);
+app.get('/api/health', (_req, res) => {
+  res.status(200).json(healthJson());
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/donations', donationRoutes);

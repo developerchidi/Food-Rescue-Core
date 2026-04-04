@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { FoodPostService } from '../services/FoodPostService';
 import { ReservationService } from '../services/ReservationService';
 import { authMiddleware, AuthRequest } from '../middleware/auth.middleware';
+import { resolveAuthUserId } from '../lib/authUser';
 
 const router = Router();
 
@@ -26,7 +27,12 @@ router.get('/:id', async (req: any, res: any) => {
 
 router.post('/', authMiddleware, async (req: AuthRequest, res: any) => {
   try {
-    const postData = { ...req.body, donorId: req.user.id };
+    const resolved = await resolveAuthUserId(req.user);
+    if (!resolved.ok) {
+      return res.status(resolved.status).json({ error: resolved.message });
+    }
+    const { donorId: _donorFromBodyIgnored, ...bodyWithoutDonor } = req.body ?? {};
+    const postData = { ...bodyWithoutDonor, donorId: resolved.userId };
     const post = await FoodPostService.createPost(postData);
     
     // Initialize Redis Stock

@@ -1,8 +1,6 @@
 import { redis } from "./redis";
 import { Ratelimit } from "@upstash/ratelimit";
-import { NextResponse } from "next/server";
 
-// Cau hinh gioi han theo tung vai tro (Priority-aware)
 const LIMIT_CONFIG = {
   GUEST: {
     GLOBAL: { count: 30, window: "60 s" },
@@ -18,7 +16,6 @@ const LIMIT_CONFIG = {
   },
 };
 
-// Map vai tro tu project sang config
 type Role = "GUEST" | "RECEIVER" | "DONOR" | "ADMIN";
 const getRoleKey = (role?: string): keyof typeof LIMIT_CONFIG => {
   if (role === "ADMIN") return "ADMIN";
@@ -26,19 +23,30 @@ const getRoleKey = (role?: string): keyof typeof LIMIT_CONFIG => {
   return "GUEST";
 };
 
-/**
- * Tao limiter dong dua tren tham so (Adaptive)
- */
 const getLimiter = (count: number, window: string) => {
   return new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(count, window as any),
+    limiter: Ratelimit.slidingWindow(count, window as never),
     analytics: true,
     prefix: "@foodrescue/ratelimit",
   });
 };
 
-export async function ratelimit(ip: string, path: string, role?: string, isSensitive: boolean = false) {
+export type RateLimitResult =
+  | { success: true; headers?: Record<string, string> }
+  | {
+      success: false;
+      statusCode: number;
+      body: Record<string, unknown>;
+      headers: Record<string, string>;
+    };
+
+export async function ratelimit(
+  ip: string,
+  path: string,
+  role?: string,
+  isSensitive: boolean = false
+): Promise<RateLimitResult> {
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
     return { success: true };
   }
@@ -52,7 +60,7 @@ export async function ratelimit(ip: string, path: string, role?: string, isSensi
   try {
     const { success, limit, remaining, reset } = await limiter.limit(identifier);
 
-    const headers = {
+    const headers: Record<string, string> = {
       "X-RateLimit-Limit": limit.toString(),
       "X-RateLimit-Remaining": remaining.toString(),
       "X-RateLimit-Reset": reset.toString(),
@@ -62,21 +70,14 @@ export async function ratelimit(ip: string, path: string, role?: string, isSensi
     if (!success) {
       return {
         success: false,
+        statusCode: 429,
         headers,
-        response: new NextResponse(
-          JSON.stringify({
-            error: "Too many requests",
-            message: "Ban da dat gioi han yeu cau cho vai tro cua minh. Vui long quay lai sau.",
-            retryAfter: Math.ceil((reset - Date.now()) / 1000),
-          }),
-          {
-            status: 429,
-            headers: {
-              "Content-Type": "application/json",
-              ...headers,
-            },
-          }
-        ),
+        body: {
+          error: "Too many requests",
+          message:
+            "Ban da dat gioi han yeu cau cho vai tro cua minh. Vui long quay lai sau.",
+          retryAfter: Math.ceil((reset - Date.now()) / 1000),
+        },
       };
     }
 
