@@ -3,6 +3,7 @@ import { FoodPostService } from '../services/FoodPostService';
 import { ReservationService } from '../services/ReservationService';
 import { authMiddleware, AuthRequest } from '../middleware/auth.middleware';
 import { CreateFoodPostSchema } from '../lib/validators/posts';
+import { resolveAuthUserId } from '../lib/authUser';
 
 const router = Router();
 
@@ -27,11 +28,13 @@ router.get('/:id', async (req: any, res: any) => {
 
 router.post('/', authMiddleware, async (req: AuthRequest, res: any) => {
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({ error: "Unauthorized" });
+    const resolved = await resolveAuthUserId(req.user);
+    if (!resolved.ok) {
+      return res.status(resolved.status).json({ error: resolved.message });
     }
 
-    const parsed = CreateFoodPostSchema.safeParse(req.body);
+    const { donorId: _donorFromBodyIgnored, ...bodyForZod } = req.body ?? {};
+    const parsed = CreateFoodPostSchema.safeParse(bodyForZod);
     if (!parsed.success) {
       return res.status(400).json({
         error: "Dữ liệu không hợp lệ",
@@ -41,7 +44,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: any) => {
 
     const payload = parsed.data;
     const post = await FoodPostService.createPost({
-      donorId: req.user.id,
+      donorId: resolved.userId,
       title: payload.title,
       description: payload.description,
       type: payload.type,
