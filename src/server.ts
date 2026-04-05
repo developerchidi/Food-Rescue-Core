@@ -13,6 +13,7 @@ import postRoutes from './routes/post.routes';
 import donationRoutes from './routes/donation.routes';
 import contactRoutes from './routes/contact.routes';
 import reservationRoutes from './routes/reservation.routes';
+import userRoutes from './routes/user.routes';
 import morgan from 'morgan';
 import { rateLimitMiddleware } from './middleware/ratelimit.middleware';
 
@@ -54,6 +55,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/reservations', reservationRoutes);
+app.use('/api/users', userRoutes);
 
 const PORT = process.env.BACKEND_PORT || 3001;
 app.listen(PORT, () => {

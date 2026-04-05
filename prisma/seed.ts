@@ -1,17 +1,27 @@
-import { PrismaClient, UserRole, FoodStatus, FoodType } from "@prisma/client";
+import { randomUUID } from "crypto";
+import {
+  PrismaClient,
+  UserRole,
+  FoodStatus,
+  FoodType,
+  DonationStatus,
+  FulfillmentMethod,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+/**
+ * Mật khẩu đăng nhập cho mọi user seed (*@example.com): password123
+ * (Khác với bảng QA manual test-data.md dùng *.foodrescue.test + Test@1234 — tài khoản đó tự tạo qua register.)
+ */
 async function main() {
-  // Cleanup initial data
   await prisma.donation.deleteMany();
   await prisma.foodPost.deleteMany();
   await prisma.user.deleteMany();
 
   const hashedPassword = await bcrypt.hash("password123", 10);
 
-  // Create Donor 1
   const donor1 = await prisma.user.create({
     data: {
       email: "donor@example.com",
@@ -23,7 +33,6 @@ async function main() {
     },
   });
 
-  // Create Donor 2
   const donor2 = await prisma.user.create({
     data: {
       email: "vietkitchen@example.com",
@@ -35,7 +44,6 @@ async function main() {
     },
   });
 
-  // Create Donor 3 (New)
   const donor3 = await prisma.user.create({
     data: {
       email: "tiembanh@example.com",
@@ -47,7 +55,6 @@ async function main() {
     },
   });
 
-  // Create Receiver
   const receiver = await prisma.user.create({
     data: {
       email: "receiver@example.com",
@@ -59,19 +66,29 @@ async function main() {
     },
   });
 
-  // Create Food Posts for Donor 1
+  await prisma.user.create({
+    data: {
+      email: "admin@example.com",
+      password: hashedPassword,
+      name: "Admin Seed",
+      role: UserRole.ADMIN,
+    },
+  });
+
   await prisma.foodPost.create({
     data: {
       donorId: donor1.id,
       title: "Bã mía của Độ",
-      description: "Bã mía tươi, thích hợp làm thức ăn gia súc hoặc phân bón hữu cơ.",
+      description:
+        "Bã mía tươi, thích hợp làm thức ăn gia súc hoặc phân bón hữu cơ.",
       type: FoodType.MYSTERY_BOX,
       originalPrice: 150000,
       rescuePrice: 50000,
       quantity: 5,
       expiryDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
       status: FoodStatus.AVAILABLE,
-      imageUrl: "https://hopdungthucan.com/wp-content/uploads/2022/04/ndslv-510x342.jpg",
+      imageUrl:
+        "https://hopdungthucan.com/wp-content/uploads/2022/04/ndslv-510x342.jpg",
     },
   });
 
@@ -86,11 +103,43 @@ async function main() {
       quantity: 10,
       expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       status: FoodStatus.AVAILABLE,
-      imageUrl: "https://vcdn1-video.vnecdn.net/2020/05/20/cach-lam-kho-ga-la-chanh-ngon-1589947098.png",
+      imageUrl:
+        "https://vcdn1-video.vnecdn.net/2020/05/20/cach-lam-kho-ga-la-chanh-ngon-1589947098.png",
     },
   });
 
-  // Create Food Posts for Donor 2
+  await prisma.foodPost.create({
+    data: {
+      donorId: donor1.id,
+      title: "[Seed] Món đã hết hạn (filter QA)",
+      description: "Bài đăng mẫu hết hạn — không hiện marketplace.",
+      type: FoodType.INDIVIDUAL,
+      originalPrice: 50000,
+      rescuePrice: 20000,
+      quantity: 0,
+      expiryDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      status: FoodStatus.EXPIRED,
+      imageUrl:
+        "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200",
+    },
+  });
+
+  const postStatsPickup = await prisma.foodPost.create({
+    data: {
+      donorId: donor1.id,
+      title: "[Seed] Đơn hoàn thành — pickup",
+      description: "Dùng để kiểm tra thống kê merchant.",
+      type: FoodType.INDIVIDUAL,
+      originalPrice: 80000,
+      rescuePrice: 30000,
+      quantity: 4,
+      expiryDate: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      status: FoodStatus.AVAILABLE,
+      imageUrl:
+        "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=200",
+    },
+  });
+
   await prisma.foodPost.create({
     data: {
       donorId: donor2.id,
@@ -117,11 +166,43 @@ async function main() {
       quantity: 8,
       expiryDate: new Date(Date.now() + 4 * 60 * 60 * 1000),
       status: FoodStatus.AVAILABLE,
-      imageUrl: "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?q=80&w=1000&auto=format&fit=crop",
+      imageUrl:
+        "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?q=80&w=1000&auto=format&fit=crop",
     },
   });
 
-  // Create Food Posts for Donor 3
+  await prisma.foodPost.create({
+    data: {
+      donorId: donor2.id,
+      title: "[Seed] Hết hàng — quantity 0 (QA)",
+      description: "Lọc marketplace / trạng thái TAKEN.",
+      type: FoodType.INDIVIDUAL,
+      originalPrice: 40000,
+      rescuePrice: 15000,
+      quantity: 0,
+      expiryDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      status: FoodStatus.TAKEN,
+      imageUrl:
+        "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200",
+    },
+  });
+
+  const postStatsDelivery = await prisma.foodPost.create({
+    data: {
+      donorId: donor2.id,
+      title: "[Seed] Đơn hoàn thành — delivery",
+      description: "Mẫu giao hàng cho seed.",
+      type: FoodType.INDIVIDUAL,
+      originalPrice: 90000,
+      rescuePrice: 40000,
+      quantity: 6,
+      expiryDate: new Date(Date.now() + 36 * 60 * 60 * 1000),
+      status: FoodStatus.AVAILABLE,
+      imageUrl:
+        "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=200",
+    },
+  });
+
   await prisma.foodPost.create({
     data: {
       donorId: donor3.id,
@@ -133,7 +214,8 @@ async function main() {
       quantity: 4,
       expiryDate: new Date(Date.now() + 6 * 60 * 60 * 1000),
       status: FoodStatus.AVAILABLE,
-      imageUrl: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=1000&auto=format&fit=crop",
+      imageUrl:
+        "https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=1000&auto=format&fit=crop",
     },
   });
 
@@ -148,11 +230,49 @@ async function main() {
       quantity: 3,
       expiryDate: new Date(Date.now() + 10 * 60 * 60 * 1000),
       status: FoodStatus.AVAILABLE,
-      imageUrl: "https://images.unsplash.com/photo-1535141192574-5d4897c12636?q=80&w=1000&auto=format&fit=crop",
+      imageUrl:
+        "https://images.unsplash.com/photo-1535141192574-5d4897c12636?q=80&w=1000&auto=format&fit=crop",
     },
   });
 
-  console.log("Dữ liệu mẫu đã được tạo thành công!");
+  await prisma.donation.create({
+    data: {
+      postId: postStatsPickup.id,
+      receiverId: receiver.id,
+      quantity: 2,
+      fulfillmentMethod: FulfillmentMethod.PICKUP,
+      status: DonationStatus.COMPLETED,
+      qrCode: randomUUID(),
+    },
+  });
+
+  await prisma.donation.create({
+    data: {
+      postId: postStatsDelivery.id,
+      receiverId: receiver.id,
+      quantity: 1,
+      fulfillmentMethod: FulfillmentMethod.DELIVERY,
+      deliveryAddress: "123 Đường Seed, Q1, TP.HCM",
+      deliveryPhone: "0900000001",
+      status: DonationStatus.COMPLETED,
+      qrCode: randomUUID(),
+    },
+  });
+
+  await prisma.donation.create({
+    data: {
+      postId: postStatsPickup.id,
+      receiverId: receiver.id,
+      quantity: 1,
+      fulfillmentMethod: FulfillmentMethod.PICKUP,
+      status: DonationStatus.REQUESTED,
+      qrCode: randomUUID(),
+    },
+  });
+
+  console.log(
+    "Seed xong. User *@example.com (kể cả admin@example.com): mật khẩu password123."
+  );
 }
 
 main()

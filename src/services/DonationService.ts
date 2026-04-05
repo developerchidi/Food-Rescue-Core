@@ -133,4 +133,33 @@ export class DonationService {
       },
     });
   }
+
+  /** Thống kê merchant: tổng suất đã bán và doanh thu (theo rescuePrice * quantity). */
+  static async getMerchantStats(merchantId: string) {
+    const donations = await prisma.donation.findMany({
+      where: {
+        post: { donorId: merchantId },
+        status: { not: "CANCELLED" },
+      },
+      include: {
+        post: {
+          select: { rescuePrice: true },
+        },
+      },
+    });
+
+    let totalMealsRescued = 0;
+    let totalRevenue = 0;
+    for (const d of donations) {
+      totalMealsRescued += d.quantity;
+      const price = d.post.rescuePrice ?? 0;
+      totalRevenue += price * d.quantity;
+    }
+
+    return {
+      totalMealsRescued,
+      totalRevenue,
+      rating: 0,
+    };
+  }
 }
