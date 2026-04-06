@@ -33,6 +33,19 @@ router.get("/mine", authMiddleware, async (req: AuthRequest, res: any) => {
   }
 });
 
+/** Công khai — phải khai báo trước GET /:id để không coi "shop" là post id. */
+router.get("/shop/:donorId", async (req: any, res: any) => {
+  try {
+    const data = await FoodPostService.getPublicShopByDonorId(
+      String(req.params.donorId)
+    );
+    if (!data) return res.status(404).json({ error: "Not found" });
+    return res.json(data);
+  } catch (err) {
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 router.get("/:id", async (req: any, res: any) => {
   try {
     const post = await FoodPostService.getPostById(String(req.params.id));

@@ -19,12 +19,29 @@ export async function resolveAuthUserId(
     return { ok: false, status: 401, message: "Invalid token payload" };
   }
   const userId = String(raw);
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true },
   });
+  // Sau seed / reset DB, UUID trong JWT cũ không còn trong DB nhưng email vẫn trùng user hiện tại.
   if (!user) {
-    return { ok: false, status: 401, message: "User not found for token" };
+    const em =
+      typeof p.email === "string" ? p.email.trim().toLowerCase() : "";
+    if (em.includes("@")) {
+      const byEmail = await prisma.user.findUnique({
+        where: { email: em },
+        select: { id: true },
+      });
+      if (byEmail) {
+        return { ok: true, userId: byEmail.id };
+      }
+    }
+    return {
+      ok: false,
+      status: 401,
+      message:
+        "Phiên đăng nhập không khớp tài khoản (thường gặp sau khi reset/seed DB). Hãy đăng xuất và đăng nhập lại.",
+    };
   }
   return { ok: true, userId: user.id };
 }

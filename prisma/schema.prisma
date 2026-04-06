@@ -44,17 +44,22 @@ enum FulfillmentMethod {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  password      String?   // Mật khẩu đã mã hóa
-  emailVerified DateTime? // Xác thực email
-  name          String?
-  role          UserRole  @default(RECEIVER)
-  latitude      Float?
-  longitude     Float?
-  points        Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  email            String    @unique
+  password         String?   // Mật khẩu đã mã hóa
+  emailVerified    DateTime? // Xác thực email
+  name             String?
+  phone            String?
+  address          String?
+  bio              String?
+  avatarUrl        String?
+  avatarPublicId   String?
+  role             UserRole  @default(RECEIVER)
+  latitude         Float?
+  longitude        Float?
+  points           Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   foodPosts     FoodPost[]
   donations     Donation[]

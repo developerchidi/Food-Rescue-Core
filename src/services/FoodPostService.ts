@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-import { FoodPost, FoodStatus } from "@prisma/client";
+import { FoodPost, FoodStatus, UserRole } from "@prisma/client";
 
 export class FoodPostService {
   static async createPost(data: {
@@ -50,6 +50,51 @@ export class FoodPostService {
       where: { id },
       include: { donor: true },
     });
+  }
+
+  /** Trang /shop công khai: donor + bài đang AVAILABLE (không lộ email/SĐT). */
+  static async getPublicShopByDonorId(donorId: string) {
+    const donor = await prisma.user.findUnique({
+      where: { id: donorId },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        avatarUrl: true,
+        bio: true,
+        address: true,
+        phone: true,
+        latitude: true,
+        longitude: true,
+        createdAt: true,
+        points: true,
+      },
+    });
+    if (!donor) return null;
+    if (donor.role !== UserRole.DONOR && donor.role !== UserRole.ADMIN) {
+      return null;
+    }
+
+    const posts = await prisma.foodPost.findMany({
+      where: {
+        donorId,
+        status: FoodStatus.AVAILABLE,
+        expiryDate: { gt: new Date() },
+      },
+      include: {
+        donor: {
+          select: {
+            id: true,
+            name: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return { donor, posts };
   }
 
   static async updateStatus(id: string, status: FoodStatus) {

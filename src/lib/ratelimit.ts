@@ -51,6 +51,13 @@ export async function ratelimit(
     return { success: true };
   }
 
+  if (
+    process.env.USE_MEMORY_REDIS === "1" ||
+    process.env.DISABLE_UPSTASH_RATELIMIT === "1"
+  ) {
+    return { success: true };
+  }
+
   const roleKey = getRoleKey(role);
   const config = isSensitive ? LIMIT_CONFIG[roleKey].SENSITIVE : LIMIT_CONFIG[roleKey].GLOBAL;
 

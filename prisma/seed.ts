@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import "../src/lib/load-env";
 import {
   PrismaClient,
   UserRole,
@@ -9,10 +10,40 @@ import {
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+/** Pooler (Supabase/PgBouncer) thường gây lỗi prepared statement — ưu tiên DIRECT_URL hoặc ?pgbouncer=true. */
+function databaseUrlForSeed(): string {
+  const direct = process.env.DIRECT_URL?.trim();
+  if (direct) return direct;
+  const url = process.env.DATABASE_URL?.trim();
+  if (!url) {
+    throw new Error(
+      "Thiếu DATABASE_URL. Tạo .env ở thư mục gốc repo hoặc Backend/ (xem .env.example)."
+    );
+  }
+  if (url.includes("pgbouncer=true")) return url;
+  if (/pooler\.|supabase\.co|neon\.tech|pgbouncer/i.test(url)) {
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}pgbouncer=true`;
+  }
+  return url;
+}
+
+const prisma = new PrismaClient({
+  datasources: { db: { url: databaseUrlForSeed() } },
+});
+
+const SEED_USER_EMAILS = new Set([
+  "donor@example.com",
+  "vietkitchen@example.com",
+  "tiembanh@example.com",
+  "receiver@example.com",
+  "admin@example.com",
+]);
 
 /**
  * Mật khẩu đăng nhập cho mọi user seed (*@example.com): password123
+ * Nếu có ADMIN_EMAIL trong .env và email không trùng tài khoản mẫu: tạo thêm user ADMIN
+ * với mật khẩu SEED_ADMIN_PASSWORD (mặc định password123).
  * (Khác với bảng QA manual test-data.md dùng *.foodrescue.test + Test@1234 — tài khoản đó tự tạo qua register.)
  */
 async function main() {
@@ -75,6 +106,24 @@ async function main() {
     },
   });
 
+  const envAdminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (envAdminEmail?.includes("@") && !SEED_USER_EMAILS.has(envAdminEmail)) {
+    const seedAdminPassword =
+      process.env.SEED_ADMIN_PASSWORD?.trim() || "password123";
+    const envAdminHash = await bcrypt.hash(seedAdminPassword, 10);
+    await prisma.user.create({
+      data: {
+        email: envAdminEmail,
+        password: envAdminHash,
+        name: "Quản trị viên",
+        role: UserRole.ADMIN,
+      },
+    });
+    console.log(
+      `Seed: đã tạo user ADMIN_EMAIL=${envAdminEmail} (đăng nhập bằng mật khẩu SEED_ADMIN_PASSWORD hoặc mặc định "password123").`
+    );
+  }
+
   await prisma.foodPost.create({
     data: {
       donorId: donor1.id,
@@ -104,7 +153,7 @@ async function main() {
       expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       status: FoodStatus.AVAILABLE,
       imageUrl:
-        "https://vcdn1-video.vnecdn.net/2020/05/20/cach-lam-kho-ga-la-chanh-ngon-1589947098.png",
+        "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?q=80&w=800&auto=format&fit=crop",
     },
   });
 

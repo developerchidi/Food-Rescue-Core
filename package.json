@@ -6,7 +6,16 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon --watch src --ext ts --exec tsx src/server.ts",
-    "start": "tsx src/server.ts"
+    "start": "tsx src/server.ts",
+    "db:seed": "node scripts/run-prisma.cjs db seed",
+    "db:generate": "node scripts/run-prisma.cjs generate",
+    "db:migrate": "node scripts/run-prisma.cjs migrate dev",
+    "db:migrate:deploy": "node scripts/run-prisma.cjs migrate deploy",
+    "db:push": "node scripts/run-prisma.cjs db push",
+    "db:studio": "node scripts/run-prisma.cjs studio"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "repository": {
     "type": "git",

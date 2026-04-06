@@ -1,14 +1,33 @@
+import type { DonationStatus } from "@prisma/client";
+import { FoodStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { ReservationService } from "./ReservationService";
 import { generateSecureQRToken } from "../lib/qr";
 
 export class DonationService {
   static async createDonation(payload: any, userId: string) {
-    // 3. Redis Reservation
-    const isReserved = await ReservationService.reserveItem(payload.postId, payload.quantity);
-
-    if (!isReserved) {
-      throw new Error("Rất tiếc, món ăn này vừa hết hàng hoặc không đủ số lượng.");
+    if (payload.holdId) {
+      const ok = await ReservationService.validateAndConsumeHold(
+        payload.holdId,
+        userId,
+        payload.postId,
+        payload.quantity
+      );
+      if (!ok) {
+        throw new Error(
+          "Giữ chỗ không hợp lệ hoặc đã hết hạn. Vui lòng tải lại trang và thử lại."
+        );
+      }
+    } else {
+      const isReserved = await ReservationService.reserveItem(
+        payload.postId,
+        payload.quantity
+      );
+      if (!isReserved) {
+        throw new Error(
+          "Rất tiếc, món ăn này vừa hết hàng hoặc không đủ số lượng."
+        );
+      }
     }
 
     try {
@@ -64,7 +83,6 @@ export class DonationService {
       return result;
 
     } catch (error: any) {
-      // Rollback Redis if DB fails
       console.error("CREATE_DONATION_ERROR:", error);
       await ReservationService.releaseItem(payload.postId, payload.quantity);
       throw new Error(error.message || "Lỗi hệ thống khi tạo đơn hàng.");
@@ -86,6 +104,14 @@ export class DonationService {
     if (donation.post.donorId !== merchantId) throw new Error("Bạn không có quyền xác thực đơn hàng này.");
     if (donation.status === "COMPLETED") throw new Error("Đơn hàng này đã được xác thực trước đó.");
     if (donation.status === "CANCELLED") throw new Error("Đơn hàng này đã bị hủy.");
+    if (donation.status === "REQUESTED") {
+      throw new Error(
+        "Đơn chưa được duyệt. Vui lòng bấm «Duyệt đơn» trong Đơn shop trước khi quét QR hoàn tất."
+      );
+    }
+    if (donation.status !== "APPROVED") {
+      throw new Error("Chỉ có thể quét QR khi đơn đã được duyệt.");
+    }
 
     const updatedDonation = await prisma.donation.update({
       where: { id: donation.id },
@@ -95,6 +121,25 @@ export class DonationService {
     });
 
     return updatedDonation;
+  }
+
+  /** Merchant: REQUESTED → APPROVED (chuẩn bị giao / cho phép quét QR hoàn tất). */
+  static async approveDonation(donationId: string, merchantId: string) {
+    const d = await prisma.donation.findUnique({
+      where: { id: donationId },
+      include: { post: true },
+    });
+    if (!d) throw new Error("Không tìm thấy đơn hàng.");
+    if (d.post.donorId !== merchantId) {
+      throw new Error("Bạn không có quyền duyệt đơn này.");
+    }
+    if (d.status !== "REQUESTED") {
+      throw new Error("Chỉ duyệt được đơn đang chờ shop xác nhận.");
+    }
+    return prisma.donation.update({
+      where: { id: donationId },
+      data: { status: "APPROVED" },
+    });
   }
 
   static async getMyOrders(userId: string) {
@@ -139,7 +184,7 @@ export class DonationService {
     const donations = await prisma.donation.findMany({
       where: {
         post: { donorId: merchantId },
-        status: { not: "CANCELLED" },
+        status: "COMPLETED",
       },
       include: {
         post: {
@@ -161,5 +206,80 @@ export class DonationService {
       totalRevenue,
       rating: 0,
     };
+  }
+
+  /**
+   * Người nhận hoặc chủ bài (merchant) hủy đơn trước khi hoàn tất; hoàn lại số lượng vào bài đăng.
+   */
+  static async cancelDonation(donationId: string, userId: string) {
+    const updated = await prisma.$transaction(async (tx) => {
+      const d = await tx.donation.findUnique({
+        where: { id: donationId },
+        include: { post: true },
+      });
+      if (!d) throw new Error("Không tìm thấy đơn hàng.");
+      const isReceiver = d.receiverId === userId;
+      const isMerchant = d.post.donorId === userId;
+      if (!isReceiver && !isMerchant) {
+        throw new Error("Bạn không có quyền hủy đơn này.");
+      }
+      if (d.status === "COMPLETED") {
+        throw new Error("Đơn đã hoàn tất, không thể hủy.");
+      }
+      if (d.status === "CANCELLED") {
+        throw new Error("Đơn đã được hủy trước đó.");
+      }
+
+      await tx.donation.update({
+        where: { id: donationId },
+        data: { status: "CANCELLED" },
+      });
+
+      let post = await tx.foodPost.update({
+        where: { id: d.postId },
+        data: { quantity: { increment: d.quantity } },
+      });
+
+      if (post.quantity > 0 && post.status === FoodStatus.TAKEN) {
+        post = await tx.foodPost.update({
+          where: { id: d.postId },
+          data: { status: FoodStatus.AVAILABLE },
+        });
+      }
+
+      return { post, postId: d.postId, qty: d.quantity };
+    });
+
+    await ReservationService.releaseItem(updated.postId, updated.qty);
+    return updated.post;
+  }
+
+  static async listMerchantOrders(merchantId: string, status?: DonationStatus) {
+    return prisma.donation.findMany({
+      where: {
+        post: { donorId: merchantId },
+        ...(status ? { status } : {}),
+      },
+      include: {
+        post: {
+          select: {
+            id: true,
+            title: true,
+            imageUrl: true,
+            rescuePrice: true,
+            donorId: true,
+          },
+        },
+        receiver: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
   }
 }

@@ -1,9 +1,4 @@
-import dotenv from 'dotenv';
-import path from 'path';
-
-// Load from root .env or current folder .env
-dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
-dotenv.config({ path: path.resolve(process.cwd(), '../.env'), override: true });
+import "./lib/load-env";
 
 import express from 'express';
 import cors from 'cors';
@@ -20,17 +15,17 @@ import { rateLimitMiddleware } from './middleware/ratelimit.middleware';
 const app = express();
 app.use(morgan('dev')); // Standard HTTP logger
 
-// Custom body logger for better debugging (no emojis)
+// Phải parse JSON trước khi log / đọc req.body (nếu không body luôn {}).
+app.use(express.json({ limit: "2mb" }));
+
 app.use((req, res, next) => {
-  if (req.method !== 'GET') {
-    const safeBody = { ...req.body };
-    if (safeBody.password) safeBody.password = '***';
+  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {
+    const safeBody = { ...(req.body as Record<string, unknown>) };
+    if ("password" in safeBody) safeBody.password = "***";
     console.log(`[REQUEST BODY] ${JSON.stringify(safeBody, null, 2)}`);
   }
   next();
 });
-
-app.use(express.json());
 app.use(cors({ origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000', credentials: true }));
 app.use(cookieParser());
 

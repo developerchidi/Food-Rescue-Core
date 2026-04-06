@@ -33,6 +33,7 @@ export class UserService {
         address: true,
         bio: true,
         avatarUrl: true,
+        avatarPublicId: true,
         role: true,
         points: true,
         latitude: true,
@@ -106,6 +107,7 @@ export class UserService {
           address: true,
           bio: true,
           avatarUrl: true,
+          avatarPublicId: true,
           role: true,
         },
       });
@@ -127,6 +129,7 @@ export class UserService {
           address: true,
           bio: true,
           avatarUrl: true,
+          avatarPublicId: true,
           role: true,
         },
       });
@@ -143,6 +146,7 @@ export class UserService {
         address: true,
         bio: true,
         avatarUrl: true,
+        avatarPublicId: true,
         role: true,
       },
     });

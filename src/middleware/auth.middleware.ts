@@ -1,9 +1,7 @@
-import jwt from 'jsonwebtoken';
-import { Request, Response, NextFunction } from 'express';
-import dotenv from 'dotenv';
-dotenv.config({ path: '../.env' });
+import jwt from "jsonwebtoken";
+import { Request, Response, NextFunction } from "express";
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-dev';
+const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key-for-dev";
 
 export interface AuthRequest extends Request {
   user?: any;

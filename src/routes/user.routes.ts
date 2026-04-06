@@ -25,8 +25,9 @@ router.get("/profile", authMiddleware, async (req: AuthRequest, res: any) => {
 
 router.patch("/merchant", authMiddleware, async (req: AuthRequest, res: any) => {
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({ error: "Unauthorized" });
+    const resolved = await resolveAuthUserId(req.user);
+    if (!resolved.ok) {
+      return res.status(resolved.status).json({ error: resolved.message });
     }
 
     const parsed = MerchantToggleSchema.safeParse(req.body);
@@ -38,7 +39,7 @@ router.patch("/merchant", authMiddleware, async (req: AuthRequest, res: any) => 
     }
 
     const updatedUser = await UserService.toggleMerchantRole(
-      req.user.id,
+      resolved.userId,
       parsed.data.registerAsMerchant
     );
 
@@ -66,8 +67,9 @@ router.patch("/merchant", authMiddleware, async (req: AuthRequest, res: any) => 
 
 router.patch("/profile", authMiddleware, async (req: AuthRequest, res: any) => {
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({ error: "Unauthorized" });
+    const resolved = await resolveAuthUserId(req.user);
+    if (!resolved.ok) {
+      return res.status(resolved.status).json({ error: resolved.message });
     }
 
     const parsed = UpdateProfileSchema.safeParse(req.body);
@@ -78,7 +80,10 @@ router.patch("/profile", authMiddleware, async (req: AuthRequest, res: any) => {
       });
     }
 
-    const updatedUser = await UserService.updateProfile(req.user.id, parsed.data);
+    const updatedUser = await UserService.updateProfile(
+      resolved.userId,
+      parsed.data
+    );
 
     return res.json({
       message: "Cập nhật hồ sơ thành công",

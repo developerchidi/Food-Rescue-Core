@@ -6,6 +6,7 @@ export const FulfillmentMethodSchema = z.enum(["PICKUP", "DELIVERY"]);
 export const RescueSchema = z
   .object({
     postId: IdSchema,
+    holdId: IdSchema.optional(),
     quantity: z
       .number({
         message: "Số lượng phải là một số.",
@@ -16,13 +17,20 @@ export const RescueSchema = z
       }),
     fulfillmentMethod: FulfillmentMethodSchema.default("PICKUP"),
     address: z.string().trim().optional(),
-    phone: z
-      .string()
-      .trim()
-      .regex(/^(0|\+84)(\d{9})$/, {
-        message: "Số điện thoại không hợp lệ.",
-      })
-      .optional(),
+    // FE gửi "" khi PICKUP; không được bắt buộc regex lên chuỗi rỗng.
+    phone: z.preprocess(
+      (v) =>
+        v === undefined || v === null || (typeof v === "string" && v.trim() === "")
+          ? undefined
+          : v,
+      z
+        .string()
+        .trim()
+        .regex(/^(0|\+84)(\d{9})$/, {
+          message: "Số điện thoại không hợp lệ.",
+        })
+        .optional()
+    ),
   })
   .superRefine((data, ctx) => {
     if (data.fulfillmentMethod === "DELIVERY") {
